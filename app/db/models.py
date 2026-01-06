@@ -10,8 +10,7 @@ from app.db.base import Base
 
 
 def utcnow() -> datetime:
-    return datetime.now(tz=timezone.utc)
-
+    return datetime.now(timezone.utc).replace(tzinfo=None)
 
 class User(Base):
     __tablename__ = "users"
@@ -33,8 +32,9 @@ class User(Base):
 
     telegram_user_id: Mapped[int | None] = mapped_column(String(32), nullable=True)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    created_at = mapped_column(DateTime(), default=utcnow, nullable=False)
+    updated_at = mapped_column(DateTime(), default=utcnow, onupdate=utcnow, nullable=False)
+
 
     activation_tokens: Mapped[list["ActivationToken"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
@@ -50,9 +50,9 @@ class ActivationToken(Base):
     token: Mapped[str] = mapped_column(String(64), primary_key=True)  # uuid4().hex is 32 chars; 64 is safe
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
 
-    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)
-    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(), default=utcnow, nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(), nullable=False)
+    consumed_at: Mapped[datetime | None] = mapped_column(DateTime(), nullable=True)
 
     user: Mapped["User"] = relationship(back_populates="activation_tokens")
 

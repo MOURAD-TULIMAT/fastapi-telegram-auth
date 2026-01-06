@@ -14,4 +14,9 @@ class Settings(BaseSettings):
 
     DATABASE_URL: str = "mysql+aiomysql://user:pass@127.0.0.1:3306/authdb"
 
+    
+    INACTIVE_OVERWRITE_AFTER_SECONDS: int = 300
+    ACTIVATION_TOKEN_TTL_MINUTES: int = 15
+    TELEGRAM_BOT_USERNAME: str = ""
+
 settings = Settings()
