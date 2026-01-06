@@ -1,4 +1,5 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, EmailStr, field_validator
+from app.core.phone import normalize_phone
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -9,11 +10,25 @@ from app.db import crud
 router = APIRouter(prefix="/auth")
 
 class RegisterIn(BaseModel):
-    phone_number: str
-    username: str
-    first_name: str
-    last_name: str
+    phone_number: str = Field(..., min_length=5, max_length=32)
+    username: str = Field(..., min_length=3, max_length=64)
+    first_name: str = Field(..., min_length=1, max_length=64)
+    last_name: str = Field(..., min_length=1, max_length=64)
     email: str | None = None
+    @field_validator("phone_number")
+    @classmethod
+    def _normalize_phone(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("phone_number is required")
+        return normalize_phone(v)
+    @field_validator("username", "first_name", "last_name")
+    @classmethod
+    def _strip_names(cls, v: str) -> str:
+        v = (v or "").strip()
+        if not v:
+            raise ValueError("field is required")
+        return v
 
 @router.post("/register")
 async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)):
