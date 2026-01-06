@@ -29,6 +29,13 @@ class RegisterIn(BaseModel):
         if not v:
             raise ValueError("field is required")
         return v
+    @field_validator("email")
+    @classmethod
+    def normalize_email(cls, v: EmailStr | None):
+        if v is None:
+            return None
+        # Optional: normalize
+        return EmailStr(str(v).strip().lower())
 
 @router.post("/register")
 async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)):
