@@ -47,7 +47,7 @@ class User(Base):
 class ActivationToken(Base):
     __tablename__ = "activation_tokens"
 
-    token: Mapped[str] = mapped_column(String(64), primary_key=True)  # uuid4().hex is 32 chars; 64 is safe
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(), default=utcnow, nullable=False)
@@ -60,7 +60,7 @@ class ActivationToken(Base):
 class PasswordResetToken(Base):
     __tablename__ = "password_reset_tokens"
 
-    token: Mapped[str] = mapped_column(String(64), primary_key=True)
+    token_hash: Mapped[str] = mapped_column(String(64), primary_key=True)
     user_id: Mapped[str] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), index=True, nullable=False)
 
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, nullable=False)

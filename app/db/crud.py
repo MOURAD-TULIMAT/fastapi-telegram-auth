@@ -8,8 +8,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.phone import normalize_phone
+from app.core.tokens import new_raw_token, token_hash
 from app.db.models import User, ActivationToken
-
 
 def now_utc() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
@@ -67,12 +67,12 @@ async def upsert_inactive_user_for_registration(
 
 
 async def create_activation_token(session: AsyncSession, user_id: str) -> ActivationToken:
-    token = uuid4().hex
+    token = new_raw_token()
     at = ActivationToken(
-        token=token,
+        token_hash=token_hash(token),
         user_id=user_id,
         expires_at=activation_expiry(),
         consumed_at=None,
     )
     session.add(at)
-    return at
+    return at, token

@@ -28,7 +28,7 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)):
                 email=payload.email,
             )
             await db.flush()
-            token = await crud.create_activation_token(db, user.id)
+            tokenInfo, token = await crud.create_activation_token(db, user.id)
     except ValueError as e:
         if str(e) == "USER_ALREADY_ACTIVE":
             raise HTTPException(status_code=409, detail="User already active")
@@ -39,12 +39,12 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)):
     if not settings.TELEGRAM_BOT_USERNAME:
         raise HTTPException(status_code=500, detail="Telegram bot username not configured")
 
-    telegram_link = f"https://t.me/{settings.TELEGRAM_BOT_USERNAME}?start={token.token}"
+    telegram_link = f"https://t.me/{settings.TELEGRAM_BOT_USERNAME}?start={token}"
     return {
         "user_id": user.id,
         "phone_number": user.phone_number,
         "is_active": user.is_active,
-        "activation_token": token.token,
+        "activation_token": token,
         "telegram_link": telegram_link,
-        "expires_at": token.expires_at.isoformat(),
+        "expires_at": tokenInfo.expires_at.isoformat(),
     }
