@@ -1,7 +1,8 @@
 from fastapi import FastAPI
+from app.core.config import settings
 
-app = FastAPI(title="Auth Service")
+app = FastAPI(title=settings.APP_NAME)
 
-@app.get("/v1/health")
+@app.get(f"{settings.API_PREFIX}/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "app": settings.APP_NAME}
