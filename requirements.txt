@@ -1,3 +1,12 @@
-fastapi
+fastapi==0.128.0
+fastapi-cli==0.0.20
+fastapi-cloud-cli==0.8.0
+pydantic==2.12.5
+pydantic-extra-types==2.10.6
+pydantic-settings==2.12.0
+pydantic_core==2.41.5
 uvicorn[standard]
-pydantic-settings
+aiomysql==0.3.2
+PyMySQL==1.1.2
+Sqlalchemy==2.0.45
+cryptography==46.0.3
