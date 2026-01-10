@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -91,3 +91,35 @@ async def retry_activation_token_by_phone(session: AsyncSession, phone_number: s
 
     raw, exp = await create_activation_token(session, user.id)
     return user, raw, exp
+
+async def get_valid_activation_token(session: AsyncSession, raw_token: str) -> ActivationToken | None:
+    h = token_hash(raw_token)
+    res = await session.execute(
+        select(ActivationToken).where(ActivationToken.token_hash == h)
+    )
+    tok = res.scalar_one_or_none()
+    if tok is None:
+        return None
+    if tok.consumed_at is not None:
+        return None
+    if tok.expires_at <= now_utc():
+        return None
+    return tok
+
+async def consume_activation_and_activate_user(session: AsyncSession, *, raw_token: str, telegram_user_id: str) -> User | None:
+    tok = await get_valid_activation_token(session, raw_token)
+    if tok is None:
+        return None
+
+    # Load user
+    res = await session.execute(select(User).where(User.id == tok.user_id))
+    user = res.scalar_one()
+
+    # Activate + bind telegram user id
+    user.is_active = True
+    user.telegram_user_id = telegram_user_id
+
+    # Consume token
+    tok.consumed_at = now_utc()
+
+    return user

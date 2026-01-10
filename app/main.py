@@ -15,7 +15,11 @@ app = FastAPI(title=settings.APP_NAME, lifespan=lifespan)
 
 app.include_router(db_health.router, prefix=settings.API_PREFIX, tags=["health"])
 app.include_router(auth.router, prefix=settings.API_PREFIX, tags=["auth"])
+if settings.ENVIRONMENT.lower() == "dev":
+    from app.api.routers import dev
+    app.include_router(dev.router, prefix=settings.API_PREFIX)
 
 @app.get(f"{settings.API_PREFIX}/health")
 async def health():
     return {"status": "ok", "app": settings.APP_NAME}
+
