@@ -14,7 +14,7 @@ class RegisterIn(BaseModel):
     username: str = Field(..., min_length=3, max_length=64)
     first_name: str = Field(..., min_length=1, max_length=64)
     last_name: str = Field(..., min_length=1, max_length=64)
-    email: str | None = None
+    email: EmailStr | None = None
     @field_validator("phone_number")
     @classmethod
     def _normalize_phone(cls, v: str) -> str:
@@ -34,8 +34,7 @@ class RegisterIn(BaseModel):
     def normalize_email(cls, v: EmailStr | None):
         if v is None:
             return None
-        # Optional: normalize
-        return EmailStr(str(v).strip().lower())
+        return str(v).strip().lower()
 
 @router.post("/register")
 async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)):
@@ -50,7 +49,7 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)):
                 email=payload.email,
             )
             await db.flush()
-            tokenInfo, token = await crud.create_activation_token(db, user.id)
+            raw_token, expires_at = await crud.create_activation_token(db, user.id)
     except ValueError as e:
         if str(e) == "USER_ALREADY_ACTIVE":
             raise HTTPException(status_code=409, detail="User already active")
@@ -61,12 +60,42 @@ async def register(payload: RegisterIn, db: AsyncSession = Depends(get_db)):
     if not settings.TELEGRAM_BOT_USERNAME:
         raise HTTPException(status_code=500, detail="Telegram bot username not configured")
 
-    telegram_link = f"https://t.me/{settings.TELEGRAM_BOT_USERNAME}?start={token}"
+    telegram_link = f"https://t.me/{settings.TELEGRAM_BOT_USERNAME}?start={raw_token}"
     return {
         "user_id": user.id,
         "phone_number": user.phone_number,
         "is_active": user.is_active,
-        "activation_token": token,
         "telegram_link": telegram_link,
-        "expires_at": tokenInfo.expires_at.isoformat(),
+        "activation_token": raw_token,
+        "expires_at": expires_at.isoformat(),
+    }
+
+
+
+class RetryActivationIn(BaseModel):
+    phone_number: str = Field(..., min_length=5, max_length=32)
+
+    @field_validator("phone_number")
+    @classmethod
+    def _normalize_phone(cls, v: str) -> str:
+        return normalize_phone(v)
+
+@router.post("/retry-activation")
+async def retry_activation(payload: RetryActivationIn, db: AsyncSession = Depends(get_db)):
+    try:
+        async with db.begin():
+            user, raw_token, exp = await crud.retry_activation_token_by_phone(db, payload.phone_number)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Inactive user not found")
+
+    if not settings.TELEGRAM_BOT_USERNAME:
+        raise HTTPException(status_code=500, detail="Telegram bot username not configured")
+
+    telegram_link = f"https://t.me/{settings.TELEGRAM_BOT_USERNAME}?start={raw_token}"
+    return {
+        "user_id": user.id,
+        "phone_number": user.phone_number,
+        "activation_token": raw_token,
+        "telegram_link": telegram_link,
+        "expires_at": exp.isoformat(),
     }

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from uuid import uuid4
 
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -14,10 +13,8 @@ from app.db.models import User, ActivationToken
 def now_utc() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
-
-def activation_expiry() -> datetime:
-    return now_utc() + timedelta(minutes=settings.ACTIVATION_TOKEN_TTL_MINUTES)
-
+def activation_expiry(now: datetime) -> datetime:
+    return now + timedelta(minutes=settings.ACTIVATION_TOKEN_TTL_MINUTES)
 
 async def get_user_by_phone(session: AsyncSession, phone_number: str) -> User | None:
     phone_number = normalize_phone(phone_number)
@@ -66,13 +63,31 @@ async def upsert_inactive_user_for_registration(
     return user
 
 
-async def create_activation_token(session: AsyncSession, user_id: str) -> ActivationToken:
-    token = new_raw_token()
-    at = ActivationToken(
-        token_hash=token_hash(token),
+async def create_activation_token(session: AsyncSession, user_id: str) -> tuple[str, datetime]:
+    raw = new_raw_token()
+    now = now_utc()
+    exp = activation_expiry(now)
+
+    row = ActivationToken(
+        token_hash=token_hash(raw),
         user_id=user_id,
-        expires_at=activation_expiry(),
+        expires_at=exp,
         consumed_at=None,
     )
-    session.add(at)
-    return at, token
+    session.add(row)
+    return raw, exp
+
+
+async def retry_activation_token_by_phone(session: AsyncSession, phone_number: str) -> tuple[User, str, datetime]:
+    phone = normalize_phone(phone_number)
+
+    res = await session.execute(select(User).where(User.phone_number == phone))
+    user = res.scalar_one_or_none()
+    if user is None or user.is_active:
+        raise ValueError("USER_NOT_FOUND_OR_ACTIVE")
+
+    # Keep a single usable activation token per user
+    await session.execute(delete(ActivationToken).where(ActivationToken.user_id == user.id))
+
+    raw, exp = await create_activation_token(session, user.id)
+    return user, raw, exp
