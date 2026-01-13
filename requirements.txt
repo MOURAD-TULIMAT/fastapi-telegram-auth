@@ -11,3 +11,4 @@ PyMySQL==1.1.2
 Sqlalchemy==2.0.45
 cryptography==46.0.3
 phonenumbers==9.0.21
+aiogram==3.24.0

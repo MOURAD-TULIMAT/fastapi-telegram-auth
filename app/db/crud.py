@@ -123,3 +123,44 @@ async def consume_activation_and_activate_user(session: AsyncSession, *, raw_tok
     tok.consumed_at = now_utc()
 
     return user
+
+async def bind_telegram_user_for_activation(session: AsyncSession, *, raw_token: str, telegram_user_id: str) -> bool:
+    """
+    If raw_token is valid (hash match, not expired, not consumed) AND user is inactive,
+    bind telegram_user_id to that user (pending). Allow overwriting telegram_user_id until activation.
+    Returns True if bound, False if token invalid/expired/consumed or user already active.
+    """
+    h = token_hash(raw_token)
+
+    res = await session.execute(
+        select(ActivationToken).where(ActivationToken.token_hash == h)
+    )
+    tok = res.scalar_one_or_none()
+    if tok is None:
+        return False
+    if tok.consumed_at is not None:
+        return False
+    if tok.expires_at <= now_utc():
+        return False
+
+    res = await session.execute(select(User).where(User.id == tok.user_id))
+    user = res.scalar_one_or_none()
+    if user is None:
+        return False
+    if user.is_active:
+        return False
+
+    tg = str(telegram_user_id)
+
+    # If you made telegram_user_id unique, clear any existing inactive user bound to this tg id
+    # (prevents unique constraint violations and avoids cross-account collisions).
+    await session.execute(
+        update(User)
+        .where(User.telegram_user_id == tg)
+        .where(User.is_active == False)  # noqa: E712
+        .values(telegram_user_id=None)
+    )
+
+    user.telegram_user_id = tg
+    return True
+

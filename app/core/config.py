@@ -20,4 +20,11 @@ class Settings(BaseSettings):
     ACTIVATION_TOKEN_TTL_MINUTES: int = 15
     TELEGRAM_BOT_USERNAME: str = ""
     ENVIRONMENT: str = "dev"
+
+    TELEGRAM_BOT_TOKEN: str = ""
+    WEB_APP_BASE_URL: str = "http://localhost:3000"
+    WEB_APP_REGISTER_PATH: str = "/register"
+    WEB_APP_RETRY_ACTIVATION_PATH: str = "/retry-activation"
+
+
 settings = Settings()

@@ -30,8 +30,8 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
-    telegram_user_id: Mapped[int | None] = mapped_column(String(32), nullable=True)
-
+    telegram_user_id: Mapped[str | None] = mapped_column(String(32), unique=True, index=True, nullable=True)
+    
     created_at = mapped_column(DateTime(), default=utcnow, nullable=False)
     updated_at = mapped_column(DateTime(), default=utcnow, onupdate=utcnow, nullable=False)
 
