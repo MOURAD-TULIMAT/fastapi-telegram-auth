@@ -106,25 +106,12 @@ async def get_valid_activation_token(session: AsyncSession, raw_token: str) -> A
         return None
     return tok
 
-async def consume_activation_and_activate_user(session: AsyncSession, *, raw_token: str, telegram_user_id: str) -> User | None:
-    tok = await get_valid_activation_token(session, raw_token)
-    if tok is None:
-        return None
-
-    # Load user
-    res = await session.execute(select(User).where(User.id == tok.user_id))
-    user = res.scalar_one()
-
-    # Activate + bind telegram user id
-    user.is_active = True
-    user.telegram_user_id = telegram_user_id
-
-    # Consume token
-    tok.consumed_at = now_utc()
-
-    return user
-
-async def bind_telegram_user_for_activation(session: AsyncSession, *, raw_token: str, telegram_user_id: str) -> bool:
+async def bind_telegram_user_for_activation(
+    session: AsyncSession,
+    *,
+    raw_token: str,
+    telegram_user_id: str,
+) -> bool:
     """
     If raw_token is valid (hash match, not expired, not consumed) AND user is inactive,
     bind telegram_user_id to that user (pending). Allow overwriting telegram_user_id until activation.
@@ -164,3 +151,50 @@ async def bind_telegram_user_for_activation(session: AsyncSession, *, raw_token:
     user.telegram_user_id = tg
     return True
 
+async def activate_user_by_telegram_contact(
+    session: AsyncSession,
+    *,
+    telegram_user_id: str,
+    contact_phone_number: str,
+) -> User | None:
+    """
+    Finds the inactive user bound to telegram_user_id, validates contact phone matches,
+    consumes the (single) activation token for that user, and activates the user.
+    Returns activated user or None if validation fails.
+    """
+    tg = str(telegram_user_id)
+
+    res = await session.execute(select(User).where(User.telegram_user_id == tg))
+    user = res.scalar_one_or_none()
+    if user is None or user.is_active:
+        return None
+
+    # Phone check
+    expected = normalize_phone(user.phone_number)
+    provided = normalize_phone(contact_phone_number)
+    if expected != provided:
+        return None
+
+    # Consume the single valid activation token for this user
+    res = await session.execute(
+        select(ActivationToken)
+        .where(ActivationToken.user_id == user.id)
+        .where(ActivationToken.consumed_at.is_(None))
+        .where(ActivationToken.expires_at > now_utc())
+        .order_by(ActivationToken.created_at.desc())
+    )
+    tok = res.scalars().first()
+    if tok is None:
+        return None
+
+    tok.consumed_at = now_utc()
+    user.is_active = True
+
+    # Hygiene: remove any other leftover tokens for the user (if any)
+    await session.execute(
+        delete(ActivationToken)
+        .where(ActivationToken.user_id == user.id)
+        .where(ActivationToken.token_hash != tok.token_hash)
+    )
+
+    return user
